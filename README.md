@@ -51,4 +51,57 @@ $ rs.secondaryOk()
 
 ## 3. Kafka Setup
 
-Setup kafka with below command [Details docker-compose.yml]
+Setup kafka with below command [docker-compose.yml](https://github.com/mrigankaroy/kafka-mongo-connector/blob/main/docker-compose.yml)
+
+```sh
+$ docker compose up -d
+```
+
+## 4. Debezium source connector Setup
+
+We need to install debezium source connector
+
+```sh
+$ docker run -it --rm --name connect --network library-network -p 8083:8083 -e GROUP_ID=1 -e CONFIG_STORAGE_TOPIC=my_connect_configs -e OFFSET_STORAGE_TOPIC=my_connect_offsets -e STATUS_STORAGE_TOPIC=my_connect_statuses -e BOOTSTRAP_SERVERS=kafka:9092 --link zookeeper:zookeeper --link kafka:kafka --link postgres:postgres --link mongo:mongo debezium/connect:1.3
+
+```
+
+### 5. Testing
+
+Create new mongo database
+
+```sh
+$ docker exec -it mongo mongo
+
+$ use user-database
+$ db.test_data.insert({"name":"Test data2"})
+```
+
+Create a source connector [Ref](https://debezium.io/documentation/reference/connectors/mongodb.html#mongodb-connector-properties)
+
+```sh
+curl --location --request POST 'http://localhost:8083/connectors' \
+--header 'Content-Type: application/json' \
+--data-raw '{
+  "name": "test-connector", 
+  "config": {
+    "connector.class": "io.debezium.connector.mongodb.MongoDbConnector", 
+    "mongodb.hosts": "rs0/mongo:27017", 
+    "mongodb.name": "libraryMongo"
+  }
+}'
+```
+
+Check newly created topic in kafka
+
+```sh
+$ bin/kafka-topics.sh --list --zookeeper zookeeper:2181
+
+```
+
+Monitor messages in kafka topic
+
+```sh
+$ bin/kafka-console-consumer.sh --topic libraryMongo.user-database.test_data --from-beginning --bootstrap-server kafka:9092
+
+```
